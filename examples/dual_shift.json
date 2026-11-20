@@ -1,0 +1,17 @@
+{
+  "sources": [
+    {"directory": {"volume_id": "LEFT", "width": 3, "slot_count": 1, "positions": [0]}, "frames": ["000"]},
+    {"directory": {"volume_id": "RIGHT", "width": 3, "slot_count": 2, "positions": [0, 1]}, "frames": ["-02", "   "]}
+  ],
+  "targets": [
+    ["meter", [["RIGHT", 0], ["RIGHT", 1], ["LEFT", 0]]],
+    ["quality", [["RIGHT", 1], ["RIGHT", 0], ["LEFT", 0]]]
+  ],
+  "capacity": 1,
+  "expected": {
+    "body_hex": ["2d3032202020303030", "2020202d3032303030"],
+    "details_each": {"total_records": 3, "valid_records": 2, "missing_records": 1, "zero_records": 1, "total": -2},
+    "peak_slots": 1,
+    "capacity_zero": "NO_PLAN"
+  }
+}

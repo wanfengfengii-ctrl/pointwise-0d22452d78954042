@@ -1,0 +1,6 @@
+{
+  "registration": {"volume_id": "SC-17", "version": 1, "width": 3, "slot_count": 5, "positions": [0, 1, 2, 3, 4]},
+  "mounted": {"volume_id": "SC-17", "version": 1, "width": 3, "slot_count": 5, "positions": [0, 1, 2, 3, 4]},
+  "frames": ["000", "-02", "   ", "007", " 07"],
+  "selection": [0, 2, 4]
+}
