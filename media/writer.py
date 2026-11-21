@@ -20,6 +20,10 @@ class SequentialWriter:
     def width(self) -> int:
         return self._width
 
+    @property
+    def is_open(self) -> bool:
+        return self._open
+
     def _require_open(self) -> None:
         if not self._open:
             raise WriteError('target writer is closed')

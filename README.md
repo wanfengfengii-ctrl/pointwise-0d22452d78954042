@@ -9,9 +9,12 @@
 ```text
 python3 -B check_project.py
 python3 -B -m issue.cli demo
+python3 -B -m issue.cli demo-dual
 ```
 
 演示从 `examples/shift.json` 读取目录和五个物理帧，在临时工作目录交卷。源卷及两份目录移除后，新的领取进程导出顺读正文。选件 `[0,2,4]` 得到 `000`、三个空格、` 07`。账面是 3 条、2 条有效、1 条缺测、1 条实测零，读数总量为 7。
+
+双卷演示从 `examples/dual_shift.json` 排程并实写两个交换卷，再用卸源后重开的成果库逐号复领。
 
 ## 白班和夜班命令
 
@@ -20,7 +23,16 @@ python3 -B -m issue.cli demo
 ```text
 python3 -B -m issue.cli deliver --store issues.db --directory registered.json --mounted-directory mounted.json --source source.bin --positions '[0,2,4]'
 python3 -B -m issue.cli retrieve --store issues.db ISS-000001 --output import.bin
+python3 -B -m issue.cli deliver-dual --store issues.db \
+    --directory left.json --directory right.json \
+    --mounted-directory left-mounted.json --mounted-directory right-mounted.json \
+    --source left.bin --source right.bin \
+    --targets '[["meter",[["RIGHT",0],["RIGHT",1],["LEFT",0]]],["quality",[["RIGHT",1],["RIGHT",0],["LEFT",0]]]]' \
+    --capacity 1
+python3 -B -m issue.cli demo-dual
 ```
+
+双卷命令按计划顺序各给两次目录和挂载描述；`--targets` 为按交卷次序排列的两个目标，容量为零时输出 `NO_PLAN` 且不建库。
 
 描述是含 `volume_id`、`width`、`slot_count` 和有序 `positions` 的 JSON 对象，`version` 可省略，默认为 1。登记描述与挂载描述可以来自不同文件，启动时必须完整相同。`--output` 创建新的顺读原始字节文件。领取 JSON 也提供 `body_hex` 和 `width`。两条命令均输出正式号、按目标序号排列的出处及固定核账。JSON 的总量使用十进制字符串，Python 接口的总量为精确整数。业务或 IO 拒绝时命令向标准错误输出错误，退出码为 1。参数解析错误遵循 argparse 的退出语义。
 
@@ -33,6 +45,8 @@ python3 -B -m issue.cli retrieve --store issues.db ISS-000001 --output import.bi
 | `media.execute_single(plan, device)` | 对照设备描述后推进一个只进读头，完成一份带实写出处的候选卷。描述不符报 `MountMismatch`，开始后的转排失败报 `ExecutionError` 并废弃已创建的候选。 |
 | `issue.publish_single(catalog, plan, candidate)` | 按绑定、正文边界和逐条出处核账，原子提交并返回 `IssueReceipt`。核对或提交失败报 `PublishError` 并废弃本次候选。 |
 | `issue.read_issue(catalog, number)` | 按正式号精确领取 `IssuedVolume`。未知号及候选号报 `IssueNotFound`。`record_at(i)` 和 `receipt.origin_at(i)` 使用从零起的目标序号。 |
+| `plan.plan_transfer(directories, targets, capacity)` | 只看两份目录和两个目标清单，返回不可变的 `DualPlan`；容量下确实无解时返回字符串 `"NO_PLAN"`。非法目录、清单或容量报 `ValueError`。 |
+| `media.execute_transfer(catalog, plan, devices, targets, rack, *, writers=None)` | 按计划推进两个只进读头，经留存架兑现共享原件，核对两卷后原子签发两个正式号，返回两个 `IssueReceipt`。执行失败报 `ExecutionError`，核对或提交失败报 `PublishError`；两种失败都废弃本次候选并释放本次留存。 |
 
 `SourceCatalog` 持有工作会话的登记目录。`SourceDirectory` 固定源卷号、`RecordLayout`、物理槽数和可选原位。用独立挂载描述调用 `open_frame_device(path, directory)`，使用后调用 `close()`。转排的 `candidate_factory` 可装配顺序目标写头，默认在本次候选内顺写定宽字节。候选是一次办理中的对象，交卷由调用者在本次办理完成后提交。`IssueStore(path).initialize()` 初始化本地成果库，再用该对象构造 `IssueCatalog`。重复初始化保留全部已提交成果。
 

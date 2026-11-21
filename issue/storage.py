@@ -44,6 +44,35 @@ class StoredIssue:
     details: ReceiptDetails
 
 
+def _insert_issue_row(
+    connection: sqlite3.Connection, width: int, body: bytes,
+    origins: tuple[IssuedOrigin, ...], details: ReceiptDetails,
+) -> int:
+    cursor = connection.execute(
+        'INSERT INTO issues (width_hex, body) VALUES (?, ?)', (format(width, 'x'), body)
+    )
+    issue_id = cursor.lastrowid
+    if issue_id is None:
+        raise IssueStoreError('issue store did not assign an issue number')
+    connection.executemany(
+        '''INSERT INTO origins (issue_id, target_index, source_volume_id, source_position_hex)
+           VALUES (?, ?, ?, ?)''',
+        (
+            (issue_id, origin.target_index, origin.source_volume_id, format(origin.source_position, 'x'))
+            for origin in origins
+        ),
+    )
+    connection.execute(
+        '''INSERT INTO ledgers (issue_id, total_records, valid_records, missing_records,
+                                zero_records, total_hex) VALUES (?, ?, ?, ?, ?, ?)''',
+        (
+            issue_id, details.total_records, details.valid_records, details.missing_records,
+            details.zero_records, format(details.total, 'x'),
+        ),
+    )
+    return issue_id
+
+
 class IssueStore:
     def __init__(self, path: str | Path) -> None:
         self._path = Path(path)
@@ -70,31 +99,23 @@ class IssueStore:
     ) -> int:
         try:
             with self._transaction() as connection:
-                cursor = connection.execute(
-                    'INSERT INTO issues (width_hex, body) VALUES (?, ?)', (format(width, 'x'), body)
-                )
-                issue_id = cursor.lastrowid
-                if issue_id is None:
-                    raise IssueStoreError('issue store did not assign an issue number')
-                connection.executemany(
-                    '''INSERT INTO origins (issue_id, target_index, source_volume_id, source_position_hex)
-                       VALUES (?, ?, ?, ?)''',
-                    (
-                        (issue_id, origin.target_index, origin.source_volume_id, format(origin.source_position, 'x'))
-                        for origin in origins
-                    ),
-                )
-                connection.execute(
-                    '''INSERT INTO ledgers (issue_id, total_records, valid_records, missing_records,
-                                            zero_records, total_hex) VALUES (?, ?, ?, ?, ?, ?)''',
-                    (
-                        issue_id, details.total_records, details.valid_records, details.missing_records,
-                        details.zero_records, format(details.total, 'x'),
-                    ),
-                )
+                issue_id = _insert_issue_row(connection, width, body, origins, details)
         except sqlite3.Error as error:
             raise IssueStoreError(f'cannot commit the issue: {error}') from error
         return issue_id
+
+    def insert_issues(self, issues: tuple[tuple[int, bytes, tuple[IssuedOrigin, ...], ReceiptDetails], ...]) -> tuple[int, ...]:
+        """Commit every issue in one transaction; a failure leaves no new issue behind."""
+
+        try:
+            with self._transaction() as connection:
+                issue_ids = tuple(
+                    _insert_issue_row(connection, width, body, origins, details)
+                    for width, body, origins, details in issues
+                )
+        except sqlite3.Error as error:
+            raise IssueStoreError(f'cannot commit the issue set: {error}') from error
+        return issue_ids
 
     def load_issue(self, issue_id: int) -> StoredIssue | None:
         try:

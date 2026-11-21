@@ -10,7 +10,12 @@ class OriginMismatch(ValueError):
 def verify_origins(
     directory: SourceDirectory, selection: Selection, records: tuple[WrittenRecord, ...]
 ) -> None:
-    expected = selection.origins(directory)
+    verify_expected_origins(selection.origins(directory), records)
+
+
+def verify_expected_origins(
+    expected: tuple[tuple[str, int], ...], records: tuple[WrittenRecord, ...]
+) -> None:
     if len(records) != len(expected):
         raise OriginMismatch('wrong number of written records')
     for index, (record, origin) in enumerate(zip(records, expected)):
